@@ -13,22 +13,10 @@
         #menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(17, 17, 17, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
         .arena-btn { background-color: #444; color: white; border: 2px solid #888; padding: 10px 20px; margin: 8px; width: 90%; max-width: 300px; font-size: 16px; cursor: pointer; border-radius: 5px; }
         .arena-btn:hover { background-color: #666; border-color: #fff; }
-
-        #shootBtn {
-            margin-top: 20px; padding: 15px 50px; border-radius: 30px;
-            background-color: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5); color: white;
-            font-size: 18px; font-weight: bold; cursor: pointer; z-index: 5; user-select: none; outline: none; display: none; letter-spacing: 2px;
-            transition: all 0.2s ease;
-        }
+        #shootBtn { margin-top: 20px; padding: 15px 50px; border-radius: 30px; background-color: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5); color: white; font-size: 18px; font-weight: bold; cursor: pointer; z-index: 5; user-select: none; outline: none; display: none; letter-spacing: 2px; transition: all 0.2s ease; }
         #shootBtn:active:not(:disabled) { background-color: rgba(255, 255, 255, 0.5); }
         #shootBtn:disabled { background-color: rgba(255,255,255,0.05); color: #888; border-color: #555; cursor: not-allowed; }
-        
-        @media (max-width: 768px) {
-            #ui { top: 10px; z-index: 5; text-shadow: 1px 1px 2px black; }
-            h2 { margin: 5px 0; font-size: 18px; }
-            p { margin: 2px 0; font-size: 12px; }
-            #shootBtn { margin-top: 10px; padding: 10px 40px; font-size: 16px; }
-        }
+        @media (max-width: 768px) { #ui { top: 10px; z-index: 5; text-shadow: 1px 1px 2px black; } h2 { margin: 5px 0; font-size: 18px; } p { margin: 2px 0; font-size: 12px; } #shootBtn { margin-top: 10px; padding: 10px 40px; font-size: 16px; } }
     </style>
 </head>
 <body>
@@ -38,10 +26,8 @@
             <h2>Gorilla Throw - ONLINE</h2>
             <p id="roleText" style="color: #aaa;">Connecting to server...</p>
         </div>
-
         <canvas id="gameCanvas" width="800" height="600"></canvas>
         <button id="shootBtn">THROW 🍌</button>
-
         <div id="menu" style="display: none;">
             <h1 style="font-size: 24px; text-align: center;">Select Playground</h1>
             <p id="waitingText" style="display:none; color: #ffeb3b;">Waiting for Player 1 to select arena...</p>
@@ -50,7 +36,7 @@
                 <button class="arena-btn" onclick="requestStart(2)">2. Horizontal Movers</button>
                 <button class="arena-btn" onclick="requestStart(3)">3. Vertical Movers</button>
                 <button class="arena-btn" onclick="requestStart(4)">4. Circular Arena</button>
-                <button class="arena-btn" onclick="requestStart(5)">5. Zigzag Pattern</button>
+                <button class="arena-btn" onclick="requestStart(5)">5. Destructible Zigzag</button>
             </div>
         </div>
     </div>
@@ -79,43 +65,23 @@
             roleText.innerText = `You are: ${role}`;
             if (role === 'Player 1') roleText.style.color = '#ff4444';
             else if (role === 'Player 2') roleText.style.color = '#4444ff';
-            
-            if (role !== 'Player 1') {
-                btnContainer.style.display = 'none';
-                waitingText.style.display = 'block';
-            }
+            if (role !== 'Player 1') { btnContainer.style.display = 'none'; waitingText.style.display = 'block'; }
         });
 
         function attemptShoot() {
             const now = Date.now();
             if (now - localLastShot < 2000) return; 
             localLastShot = now;
-
-            shootBtn.disabled = true;
-            shootBtn.innerText = "RELOADING...";
-            
-            setTimeout(() => {
-                shootBtn.disabled = false;
-                shootBtn.innerText = "THROW 🍌";
-            }, 2000);
-
+            shootBtn.disabled = true; shootBtn.innerText = "RELOADING...";
+            setTimeout(() => { shootBtn.disabled = false; shootBtn.innerText = "THROW 🍌"; }, 2000);
             socket.emit('shoot');
         }
 
-        window.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') attemptShoot();
-        });
-
-        function handleShoot(e) {
-            e.preventDefault();
-            attemptShoot();
-        }
+        window.addEventListener('keydown', (e) => { if (e.code === 'Space') attemptShoot(); });
+        function handleShoot(e) { e.preventDefault(); attemptShoot(); }
         shootBtn.addEventListener('touchstart', handleShoot, { passive: false });
         shootBtn.addEventListener('mousedown', handleShoot);
-
-        function requestStart(arena) {
-            socket.emit('startGame', arena);
-        }
+        function requestStart(arena) { socket.emit('startGame', arena); }
 
         class Particle {
             constructor(x, y, color) {
@@ -126,24 +92,16 @@
                 this.radius = Math.random() * 3 + 1; this.life = 1.0; this.decay = Math.random() * 0.05 + 0.02;
             }
             update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
-            draw() {
-                ctx.globalAlpha = Math.max(this.life, 0); ctx.fillStyle = this.color;
-                ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
-                ctx.globalAlpha = 1.0;
-            }
+            draw() { ctx.globalAlpha = Math.max(this.life, 0); ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1.0; }
         }
 
-        socket.on('playerHit', (data) => {
-            for (let i = 0; i < 20; i++) particles.push(new Particle(data.x, data.y, data.color));
-        });
+        socket.on('playerHit', (data) => { for (let i = 0; i < 20; i++) particles.push(new Particle(data.x, data.y, data.color)); });
+        socket.on('shieldBreak', (data) => { for (let i = 0; i < 15; i++) particles.push(new Particle(data.x, data.y, '#00ffff')); });
 
         socket.on('stateUpdate', (state) => {
             serverState = state;
-            if (state.gameState === 'MENU') {
-                menu.style.display = 'flex'; shootBtn.style.display = 'none'; particles = []; 
-            } else {
-                menu.style.display = 'none'; shootBtn.style.display = 'block'; 
-            }
+            if (state.gameState === 'MENU') { menu.style.display = 'flex'; shootBtn.style.display = 'none'; particles = []; } 
+            else { menu.style.display = 'none'; shootBtn.style.display = 'block'; }
         });
 
         function draw() {
@@ -152,67 +110,76 @@
 
             if (serverState.currentArena === 4) {
                 ctx.fillStyle = "#222"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.beginPath(); ctx.arc(400, 300, 280, 0, Math.PI * 2);
-                ctx.fillStyle = "#111"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.stroke(); ctx.closePath();
+                ctx.beginPath(); ctx.arc(400, 300, 280, 0, Math.PI * 2); ctx.fillStyle = "#111"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 4; ctx.stroke(); ctx.closePath();
             } else {
                 ctx.fillStyle = '#111'; ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
 
             ctx.textAlign = "left";
-            if (currentPing > 150) {
-                ctx.fillStyle = "#ff4444"; ctx.font = "bold 16px Arial";
-                ctx.fillText(`⚠️ High Ping: ${currentPing}ms`, 15, 30);
-            } else if (currentPing > 0) {
-                ctx.fillStyle = "#44ff44"; ctx.font = "14px Arial";
-                ctx.fillText(`Ping: ${currentPing}ms`, 15, 30);
+            if (currentPing > 150) { ctx.fillStyle = "#ff4444"; ctx.font = "bold 16px Arial"; ctx.fillText(`⚠️ High Ping: ${currentPing}ms`, 15, 30); } 
+            else if (currentPing > 0) { ctx.fillStyle = "#44ff44"; ctx.font = "14px Arial"; ctx.fillText(`Ping: ${currentPing}ms`, 15, 30); }
+
+            ctx.lineWidth = 2;
+            if (serverState.obstacles) {
+                serverState.obstacles.forEach(o => {
+                    ctx.globalAlpha = o.health / 3; 
+                    ctx.fillStyle = '#333'; ctx.strokeStyle = '#666';
+                    ctx.fillRect(o.x, o.y, o.width, o.height); ctx.strokeRect(o.x, o.y, o.width, o.height);
+                    ctx.globalAlpha = 1.0;
+                });
             }
 
-            ctx.fillStyle = '#333'; ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
-            serverState.obstacles.forEach(o => {
-                ctx.fillRect(o.x, o.y, o.width, o.height); ctx.strokeRect(o.x, o.y, o.width, o.height);
-            });
+            if (serverState.powerUps) {
+                serverState.powerUps.forEach(pu => {
+                    ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                    if (pu.type === 'shield') ctx.fillText("🛡️", pu.x, pu.y);
+                    if (pu.type === 'multishot') ctx.fillText("🍌", pu.x, pu.y);
+                    if (pu.type === 'double') ctx.fillText("✌️", pu.x, pu.y);
+                    if (pu.type === 'speed') ctx.fillText("⚡", pu.x, pu.y);
+                    if (pu.type === 'life') ctx.fillText("❤️", pu.x, pu.y); // NEW
+                });
+            }
 
             particles.forEach(p => { p.update(); p.draw(); });
             particles = particles.filter(p => p.life > 0);
 
-            serverState.bullets.forEach(b => {
-                ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-                ctx.fillText("🍌", b.x, b.y);
-            });
+            if (serverState.bullets) {
+                serverState.bullets.forEach(b => {
+                    ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                    ctx.fillText("🍌", b.x, b.y);
+                });
+            }
 
-            Object.values(serverState.players).forEach(p => {
-                ctx.save(); ctx.translate(p.x, p.y);
-                
-                ctx.fillStyle = p.color; ctx.font = "bold 14px Arial"; ctx.textAlign = "center"; 
-                ctx.fillText(`Lives: ${p.lives}`, 0, -40);
-                
-                ctx.rotate(p.angle); 
-                
-                // DRAW THE THROWING ARM
-                if (p.throwTimer > 0) {
-                    // Arm extends out and retracts based on the timer
-                    const extension = 15 + (7.5 - Math.abs(p.throwTimer - 7.5)) * 3;
+            if (serverState.players) {
+                Object.values(serverState.players).forEach(p => {
+                    ctx.save(); ctx.translate(p.x, p.y);
                     
-                    ctx.beginPath();
-                    ctx.moveTo(5, 12); // Start near the gorilla's shoulder area
-                    ctx.lineTo(extension, 5); // Extend outward
-                    ctx.lineWidth = 12;
-                    ctx.lineCap = "round";
-                    ctx.strokeStyle = "#2b2b2b"; // Dark grey matching the gorilla fur
-                    ctx.stroke();
-                }
+                    ctx.fillStyle = p.color; ctx.font = "bold 14px Arial"; ctx.textAlign = "center"; 
+                    let statusText = `Lives: ${p.lives}`;
+                    if (p.multiShotsLeft > 0) statusText += ` (3x🍌)`;
+                    if (p.doubleShotsLeft > 0) statusText += ` (2x🍌)`;
+                    ctx.fillText(statusText, 0, -40);
+                    
+                    if (p.hasShield) {
+                        ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2);
+                        ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 4; ctx.stroke();
+                    }
 
-                ctx.font = "40px Arial"; ctx.textBaseline = "middle";
-                ctx.fillText("🦍", 0, 0);
-
-                ctx.restore();
-            });
+                    ctx.rotate(p.angle); 
+                    if (p.throwTimer > 0) {
+                        const extension = 15 + (7.5 - Math.abs(p.throwTimer - 7.5)) * 3;
+                        ctx.beginPath(); ctx.moveTo(5, 12); ctx.lineTo(extension, 5);
+                        ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.strokeStyle = "#2b2b2b"; ctx.stroke();
+                    }
+                    ctx.font = "40px Arial"; ctx.textBaseline = "middle"; ctx.fillText("🦍", 0, 0);
+                    ctx.restore();
+                });
+            }
 
             if (serverState.gameState === 'GAMEOVER') {
                 ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                if (serverState.currentArena === 4) {
-                    ctx.beginPath(); ctx.arc(400, 300, 280, 0, Math.PI * 2); ctx.fill();
-                } else { ctx.fillRect(0, 0, canvas.width, canvas.height); }
+                if (serverState.currentArena === 4) { ctx.beginPath(); ctx.arc(400, 300, 280, 0, Math.PI * 2); ctx.fill(); } 
+                else { ctx.fillRect(0, 0, canvas.width, canvas.height); }
                 ctx.fillStyle = "white"; ctx.font = "40px Arial"; ctx.textAlign = "center"; ctx.fillText("GAME OVER", 400, 280);
                 ctx.fillStyle = serverState.winnerMessage.includes("Player 1") ? "#ff4444" : "#4444ff";
                 ctx.font = "30px Arial"; ctx.fillText(serverState.winnerMessage, 400, 330);
