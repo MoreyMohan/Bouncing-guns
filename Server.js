@@ -36,12 +36,12 @@ class Gorilla {
         this.dx = dx; this.dy = dy; this.angle = 0; this.rotationSpeed = rotationSpeed;
         this.lives = 3; this.lastShotTime = 0;
         this.radius = 20; 
-        this.throwTimer = 0; // NEW: Tracks the throwing animation
+        this.throwTimer = 0; 
     }
     update() {
         if (gameState !== 'PLAYING') return;
         this.x += this.dx; this.y += this.dy; this.angle += this.rotationSpeed;
-        if (this.throwTimer > 0) this.throwTimer--; // Decrement animation frames
+        if (this.throwTimer > 0) this.throwTimer--; 
         handleBounces(this, this.radius);
     }
 }
@@ -145,10 +145,11 @@ io.on('connection', (socket) => {
         if (now - p.lastShotTime < 2000) return;
         p.lastShotTime = now;
         
-        p.throwTimer = 15; // Start the 15-frame throwing animation
+        p.throwTimer = 15; // Start throwing animation
 
-        const spawnX = p.x + Math.cos(p.angle) * 35;
-        const spawnY = p.y + Math.sin(p.angle) * 35;
+        // Banana spawns slightly further out to match the new extended arm gesture
+        const spawnX = p.x + Math.cos(p.angle) * 40;
+        const spawnY = p.y + Math.sin(p.angle) * 40;
         bullets.push(new Projectile(spawnX, spawnY, Math.cos(p.angle)*8, Math.sin(p.angle)*8, p.color, socket.id));
     });
 
