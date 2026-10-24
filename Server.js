@@ -73,7 +73,16 @@ class Gorilla {
                 if (pu.type === 'multishot') { this.multiShotsLeft = 3; this.doubleShotsLeft = 0; }
                 if (pu.type === 'double') { this.doubleShotsLeft = 3; this.multiShotsLeft = 0; }
                 if (pu.type === 'speed') this.speedTimer = 300; 
-                if (pu.type === 'life') { if (this.lives < 5) this.lives++; } // NEW: Grants extra life, max 5
+                if (pu.type === 'life') { if (this.lives < 5) this.lives++; } 
+                if (pu.type === 'swap') {
+                    const otherPlayer = Object.values(players).find(p => p.id !== this.id);
+                    if (otherPlayer) {
+                        const tempX = this.x; const tempY = this.y;
+                        this.x = otherPlayer.x; this.y = otherPlayer.y;
+                        otherPlayer.x = tempX; otherPlayer.y = tempY;
+                        io.emit('teleportEffect', { p1: {x: this.x, y: this.y}, p2: {x: otherPlayer.x, y: otherPlayer.y} });
+                    }
+                }
                 return false; 
             }
             return true;
@@ -107,18 +116,23 @@ function handlePlayerBounces(obj, radius) {
             const overlap = dist + radius - 280;
             const nx = (obj.x - 400) / dist; const ny = (obj.y - 300) / dist;
             obj.x -= nx * overlap; obj.y -= ny * overlap;
-            const dot = obj.dx * nx + obj.dy * ny;
-            obj.dx -= 2 * dot * nx; obj.dy -= 2 * dot * ny;
-            if (obj.rotationSpeed) obj.rotationSpeed *= -1;
-            obj.baseRot *= -1;
+            
+            const dot = obj.baseDx * nx + obj.baseDy * ny;
+            obj.baseDx -= 2 * dot * nx; 
+            obj.baseDy -= 2 * dot * ny;
+            
+            obj.dx = obj.baseDx * (obj.speedTimer > 0 ? 2 : 1);
+            obj.dy = obj.baseDy * (obj.speedTimer > 0 ? 2 : 1);
+
+            if (obj.rotationSpeed) { obj.rotationSpeed *= -1; obj.baseRot *= -1; }
         }
     } else {
         if (obj.x - radius < 0 || obj.x + radius > 800) {
-            obj.dx *= -1; obj.baseDx *= -1; if (obj.rotationSpeed) obj.rotationSpeed *= -1; obj.baseRot *= -1;
+            obj.dx *= -1; obj.baseDx *= -1; if (obj.rotationSpeed) { obj.rotationSpeed *= -1; obj.baseRot *= -1; }
             obj.x = Math.max(radius, Math.min(obj.x, 800 - radius));
         }
         if (obj.y - radius < 0 || obj.y + radius > 600) {
-            obj.dy *= -1; obj.baseDy *= -1; if (obj.rotationSpeed) obj.rotationSpeed *= -1; obj.baseRot *= -1;
+            obj.dy *= -1; obj.baseDy *= -1; if (obj.rotationSpeed) { obj.rotationSpeed *= -1; obj.baseRot *= -1; }
             obj.y = Math.max(radius, Math.min(obj.y, 600 - radius));
         }
     }
@@ -172,10 +186,22 @@ function handleBulletBounces(bullet, radius) {
 
 function spawnPowerUp() {
     if (gameState !== 'PLAYING') return;
-    const types = ['shield', 'multishot', 'double', 'speed', 'life']; // NEW: added life
+    const types = ['shield', 'shield', 'multishot', 'multishot', 'double', 'double', 'speed', 'speed', 'life', 'life', 'swap']; 
     const type = types[Math.floor(Math.random() * types.length)];
-    const x = Math.random() * 600 + 100;
-    const y = Math.random() * 400 + 100;
+    let x, y;
+
+    if (currentArena === 4) {
+        // Circular math to spawn strictly inside the 280px radius circle
+        const angle = Math.random() * Math.PI * 2;
+        const r = Math.sqrt(Math.random()) * 240; // Max radius of 240 prevents it from touching the walls
+        x = 400 + r * Math.cos(angle);
+        y = 300 + r * Math.sin(angle);
+    } else {
+        // Rectangular logic
+        x = Math.random() * 600 + 100;
+        y = Math.random() * 400 + 100;
+    }
+
     powerUps.push(new PowerUp(Date.now(), x, y, type));
 }
 
