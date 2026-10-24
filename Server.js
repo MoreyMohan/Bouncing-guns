@@ -30,40 +30,35 @@ class Obstacle {
     }
 }
 
-class Gun {
+class Gorilla {
     constructor(id, num, x, y, color, dx, dy, rotationSpeed) {
         this.id = id; this.num = num; this.x = x; this.y = y; this.color = color;
         this.dx = dx; this.dy = dy; this.angle = 0; this.rotationSpeed = rotationSpeed;
         this.lives = 3; this.lastShotTime = 0;
-        this.barrelLength = 40;
+        this.radius = 20; // Collision size for the gorilla
     }
     update() {
         if (gameState !== 'PLAYING') return;
         this.x += this.dx; this.y += this.dy; this.angle += this.rotationSpeed;
-        handleBounces(this, this.barrelLength);
+        handleBounces(this, this.radius);
     }
 }
 
-class Bullet {
+class Projectile {
     constructor(x, y, dx, dy, color, ownerId) {
         this.x = x; this.y = y; this.dx = dx; this.dy = dy;
-        this.color = color; this.ownerId = ownerId; this.radius = 5; this.active = true;
+        this.color = color; this.ownerId = ownerId; this.radius = 8; this.active = true;
         this.creationTime = Date.now();
     }
     update() {
         this.x += this.dx; this.y += this.dy;
 
         if (currentArena === 1) {
-            if (this.x < 0 || this.x > 800 || this.y < 0 || this.y > 600) {
-                this.active = false;
-            }
+            if (this.x < 0 || this.x > 800 || this.y < 0 || this.y > 600) this.active = false;
         } else {
             handleBounces(this, this.radius);
-            if (Date.now() - this.creationTime > 2000) {
-                this.active = false;
-            }
+            if (Date.now() - this.creationTime > 2000) this.active = false;
         }
-        
         if (this.x < -50 || this.x > 850 || this.y < -50 || this.y > 650) this.active = false;
     }
 }
@@ -125,8 +120,13 @@ io.on('connection', (socket) => {
     
     socket.emit('roleAssigned', role);
 
-    if (role === 'Player 1') players[socket.id] = new Gun(socket.id, 1, 250, 300, '#ff4444', 3, 2, 0.05);
-    if (role === 'Player 2') players[socket.id] = new Gun(socket.id, 2, 550, 300, '#4444ff', -2, 3, -0.04);
+    // Latency checker endpoint
+    socket.on('ping', (callback) => {
+        if (typeof callback === 'function') callback();
+    });
+
+    if (role === 'Player 1') players[socket.id] = new Gorilla(socket.id, 1, 250, 300, '#ff4444', 3, 2, 0.05);
+    if (role === 'Player 2') players[socket.id] = new Gorilla(socket.id, 2, 550, 300, '#4444ff', -2, 3, -0.04);
 
     socket.on('startGame', (arenaType) => {
         if (socket.id === p1SocketId || socket.id === p2SocketId) {
@@ -145,9 +145,10 @@ io.on('connection', (socket) => {
         if (now - p.lastShotTime < 2000) return;
         p.lastShotTime = now;
 
-        const spawnX = p.x + Math.cos(p.angle) * p.barrelLength;
-        const spawnY = p.y + Math.sin(p.angle) * p.barrelLength;
-        bullets.push(new Bullet(spawnX, spawnY, Math.cos(p.angle)*8, Math.sin(p.angle)*8, p.color, socket.id));
+        // Spawn banana slightly in front of the rotating gorilla
+        const spawnX = p.x + Math.cos(p.angle) * 20;
+        const spawnY = p.y + Math.sin(p.angle) * 20;
+        bullets.push(new Projectile(spawnX, spawnY, Math.cos(p.angle)*8, Math.sin(p.angle)*8, p.color, socket.id));
     });
 
     socket.on('disconnect', () => {
@@ -174,7 +175,7 @@ setInterval(() => {
                         
                         if (p.lives <= 0) {
                             gameState = 'GAMEOVER';
-                            winnerMessage = p.num === 1 ? "Player 2 (Blue) Wins!" : "Player 1 (Red) Wins!";
+                            winnerMessage = p.num === 1 ? "Player 2 Wins!" : "Player 1 Wins!";
                             setTimeout(() => { gameState = 'MENU'; }, 4000);
                         }
                     }
@@ -183,7 +184,6 @@ setInterval(() => {
         });
         bullets = bullets.filter(b => b.active);
     }
-    
     io.emit('stateUpdate', { players, bullets, obstacles, gameState, currentArena, winnerMessage });
 }, 1000 / 60);
 
