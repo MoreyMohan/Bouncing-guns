@@ -11,12 +11,19 @@
         canvas { background-color: #111; box-shadow: 0 0 20px rgba(255, 255, 255, 0.2); border: 4px solid #fff; display: block; max-width: 100%; height: auto; }
         #ui { position: absolute; top: -60px; width: 100%; text-align: center; }
         #menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(17, 17, 17, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; }
+        
+        /* Avatar Selector Styles */
+        .avatar-selector { display: flex; gap: 15px; margin-bottom: 30px; }
+        .avatar-img { width: 70px; height: 70px; border-radius: 50%; border: 3px solid #555; cursor: pointer; opacity: 0.5; transition: 0.2s; object-fit: cover; background-color: #fff; }
+        .avatar-img:hover { opacity: 0.8; }
+        .avatar-img.selected { border-color: #ffeb3b; opacity: 1; transform: scale(1.15); box-shadow: 0 0 15px rgba(255, 235, 59, 0.5); }
+
         .arena-btn { background-color: #444; color: white; border: 2px solid #888; padding: 10px 20px; margin: 8px; width: 90%; max-width: 300px; font-size: 16px; cursor: pointer; border-radius: 5px; }
         .arena-btn:hover { background-color: #666; border-color: #fff; }
         #shootBtn { margin-top: 20px; padding: 15px 50px; border-radius: 30px; background-color: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5); color: white; font-size: 18px; font-weight: bold; cursor: pointer; z-index: 5; user-select: none; outline: none; display: none; letter-spacing: 2px; transition: all 0.2s ease; }
         #shootBtn:active:not(:disabled) { background-color: rgba(255, 255, 255, 0.5); }
         #shootBtn:disabled { background-color: rgba(255,255,255,0.05); color: #888; border-color: #555; cursor: not-allowed; }
-        @media (max-width: 768px) { #ui { top: 10px; z-index: 5; text-shadow: 1px 1px 2px black; } h2 { margin: 5px 0; font-size: 18px; } p { margin: 2px 0; font-size: 12px; } #shootBtn { margin-top: 10px; padding: 10px 40px; font-size: 16px; } }
+        @media (max-width: 768px) { #ui { top: 10px; z-index: 5; text-shadow: 1px 1px 2px black; } h2 { margin: 5px 0; font-size: 18px; } p { margin: 2px 0; font-size: 12px; } #shootBtn { margin-top: 10px; padding: 10px 40px; font-size: 16px; } .avatar-img { width: 50px; height: 50px; } }
     </style>
 </head>
 <body>
@@ -27,9 +34,19 @@
             <p id="roleText" style="color: #aaa;">Connecting to server...</p>
         </div>
         <canvas id="gameCanvas" width="800" height="600"></canvas>
-        <button id="shootBtn">THROW 🍌</button>
+        <button id="shootBtn">SHOOT</button>
         <div id="menu" style="display: none;">
-            <h1 style="font-size: 24px; text-align: center;">Select Playground</h1>
+            
+            <!-- AVATAR SELECTION UI -->
+            <h2 style="margin-bottom: 10px;">Choose Your Fighter</h2>
+            <div class="avatar-selector">
+                <img src="1000151718.jpg" class="avatar-img" onclick="selectAvatar('1000151718.jpg')">
+                <img src="1000151721.jpg" class="avatar-img" onclick="selectAvatar('1000151721.jpg')">
+                <img src="1000151724.jpg" class="avatar-img selected" onclick="selectAvatar('1000151724.jpg')">
+                <img src="1000151727.jpg" class="avatar-img" onclick="selectAvatar('1000151727.jpg')">
+            </div>
+
+            <h1 style="font-size: 24px; text-align: center; margin-top: 20px;">Select Playground</h1>
             <p id="waitingText" style="display:none; color: #ffeb3b;">Waiting for Player 1 to select arena...</p>
             <div id="btnContainer" style="display: flex; flex-direction: column; align-items: center; width: 100%;">
                 <button class="arena-btn" onclick="requestStart(1)">1. Classic Arena</button>
@@ -51,10 +68,23 @@
         const waitingText = document.getElementById('waitingText');
         const shootBtn = document.getElementById('shootBtn');
 
+        // Preload avatar images
+        const avatarImages = {};
+        ['1000151718.jpg', '1000151721.jpg', '1000151724.jpg', '1000151727.jpg'].forEach(name => {
+            avatarImages[name] = new Image();
+            avatarImages[name].src = name;
+        });
+
         let serverState = {};
         let particles = [];
         let currentPing = 0;
         let localLastShot = 0;
+
+        function selectAvatar(imgName) {
+            document.querySelectorAll('.avatar-img').forEach(img => img.classList.remove('selected'));
+            document.querySelector(`img[src="${imgName}"]`).classList.add('selected');
+            socket.emit('setAvatar', imgName);
+        }
 
         setInterval(() => {
             const start = Date.now();
@@ -73,7 +103,7 @@
             if (now - localLastShot < 2000) return; 
             localLastShot = now;
             shootBtn.disabled = true; shootBtn.innerText = "RELOADING...";
-            setTimeout(() => { shootBtn.disabled = false; shootBtn.innerText = "THROW 🍌"; }, 2000);
+            setTimeout(() => { shootBtn.disabled = false; shootBtn.innerText = "SHOOT"; }, 2000);
             socket.emit('shoot');
         }
 
@@ -97,6 +127,12 @@
 
         socket.on('playerHit', (data) => { for (let i = 0; i < 20; i++) particles.push(new Particle(data.x, data.y, data.color)); });
         socket.on('shieldBreak', (data) => { for (let i = 0; i < 15; i++) particles.push(new Particle(data.x, data.y, '#00ffff')); });
+        socket.on('teleportEffect', (data) => { 
+            for (let i = 0; i < 15; i++) {
+                particles.push(new Particle(data.p1.x, data.p1.y, '#9c27b0')); 
+                particles.push(new Particle(data.p2.x, data.p2.y, '#9c27b0')); 
+            }
+        });
 
         socket.on('stateUpdate', (state) => {
             serverState = state;
@@ -136,7 +172,8 @@
                     if (pu.type === 'multishot') ctx.fillText("🍌", pu.x, pu.y);
                     if (pu.type === 'double') ctx.fillText("✌️", pu.x, pu.y);
                     if (pu.type === 'speed') ctx.fillText("⚡", pu.x, pu.y);
-                    if (pu.type === 'life') ctx.fillText("❤️", pu.x, pu.y); // NEW
+                    if (pu.type === 'life') ctx.fillText("❤️", pu.x, pu.y); 
+                    if (pu.type === 'swap') ctx.fillText("🔄", pu.x, pu.y); 
                 });
             }
 
@@ -145,8 +182,14 @@
 
             if (serverState.bullets) {
                 serverState.bullets.forEach(b => {
-                    ctx.font = "20px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-                    ctx.fillText("🍌", b.x, b.y);
+                    // Bullets are visually drawn as glowing yellow orbs to match the guns
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = "#ffeb3b";
+                    ctx.fill();
+                    ctx.strokeStyle = "#f57f17";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
                 });
             }
 
@@ -154,24 +197,60 @@
                 Object.values(serverState.players).forEach(p => {
                     ctx.save(); ctx.translate(p.x, p.y);
                     
+                    // Draw Player Identifier and Health
                     ctx.fillStyle = p.color; ctx.font = "bold 14px Arial"; ctx.textAlign = "center"; 
                     let statusText = `Lives: ${p.lives}`;
-                    if (p.multiShotsLeft > 0) statusText += ` (3x🍌)`;
-                    if (p.doubleShotsLeft > 0) statusText += ` (2x🍌)`;
-                    ctx.fillText(statusText, 0, -40);
+                    if (p.multiShotsLeft > 0) statusText += ` (3x)`;
+                    if (p.doubleShotsLeft > 0) statusText += ` (2x)`;
+                    ctx.fillText(statusText, 0, -45);
                     
                     if (p.hasShield) {
-                        ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI * 2);
-                        ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; ctx.lineWidth = 4; ctx.stroke();
+                        ctx.beginPath(); ctx.arc(0, 0, 34, 0, Math.PI * 2);
+                        ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; ctx.lineWidth = 4; ctx.stroke();
                     }
 
                     ctx.rotate(p.angle); 
-                    if (p.throwTimer > 0) {
-                        const extension = 15 + (7.5 - Math.abs(p.throwTimer - 7.5)) * 3;
-                        ctx.beginPath(); ctx.moveTo(5, 12); ctx.lineTo(extension, 5);
-                        ctx.lineWidth = 12; ctx.lineCap = "round"; ctx.strokeStyle = "#2b2b2b"; ctx.stroke();
+                    
+                    // Circular clipping path hides the JPG checkerboard backgrounds
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 25, 0, Math.PI * 2);
+                    ctx.closePath();
+                    
+                    // Draw a colored ring around the avatar to show which player it is
+                    ctx.lineWidth = 6;
+                    ctx.strokeStyle = p.color;
+                    ctx.stroke();
+                    
+                    ctx.clip(); // Mask the image into a circle
+                    
+                    // Draw the custom Avatar Image
+                    if (p.avatar && avatarImages[p.avatar] && avatarImages[p.avatar].complete) {
+                        ctx.drawImage(avatarImages[p.avatar], -25, -25, 50, 50);
+                    } else {
+                        // Fallback color if image is loading
+                        ctx.fillStyle = p.color;
+                        ctx.fillRect(-25, -25, 50, 50);
                     }
-                    ctx.font = "40px Arial"; ctx.textBaseline = "middle"; ctx.fillText("🦍", 0, 0);
+
+                    // Restore canvas state to draw outside the circular clip mask
+                    ctx.restore(); 
+                    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+
+                    // Dynamic Muzzle Flash (Triggers during the first few frames of throwing)
+                    if (p.throwTimer > 10) {
+                        // Draw outer orange flash
+                        ctx.beginPath();
+                        ctx.arc(32, 10, Math.random() * 8 + 8, 0, Math.PI * 2);
+                        ctx.fillStyle = "rgba(255, 140, 0, 0.8)"; 
+                        ctx.fill();
+                        
+                        // Draw inner yellow core
+                        ctx.beginPath();
+                        ctx.arc(32, 10, Math.random() * 5 + 4, 0, Math.PI * 2);
+                        ctx.fillStyle = "rgba(255, 255, 0, 1)"; 
+                        ctx.fill();
+                    }
+
                     ctx.restore();
                 });
             }

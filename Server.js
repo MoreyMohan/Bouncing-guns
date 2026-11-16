@@ -40,12 +40,15 @@ class PowerUp {
     }
 }
 
-class Gorilla {
+class PlayerCharacter {
     constructor(id, num, x, y, color, dx, dy, rotationSpeed) {
         this.id = id; this.num = num; this.x = x; this.y = y; this.color = color;
         this.baseDx = dx; this.baseDy = dy; this.baseRot = rotationSpeed;
         this.dx = dx; this.dy = dy; this.angle = 0; this.rotationSpeed = rotationSpeed;
-        this.lives = 3; this.lastShotTime = 0; this.radius = 20; this.throwTimer = 0;
+        this.lives = 3; this.lastShotTime = 0; this.radius = 25; // Slightly larger for image avatars
+        this.throwTimer = 0; 
+        
+        this.avatar = '1000151724.jpg'; // Default to Monkey
         
         this.hasShield = false;
         this.multiShotsLeft = 0;
@@ -191,17 +194,14 @@ function spawnPowerUp() {
     let x, y;
 
     if (currentArena === 4) {
-        // Circular math to spawn strictly inside the 280px radius circle
         const angle = Math.random() * Math.PI * 2;
-        const r = Math.sqrt(Math.random()) * 240; // Max radius of 240 prevents it from touching the walls
+        const r = Math.sqrt(Math.random()) * 240; 
         x = 400 + r * Math.cos(angle);
         y = 300 + r * Math.sin(angle);
     } else {
-        // Rectangular logic
         x = Math.random() * 600 + 100;
         y = Math.random() * 400 + 100;
     }
-
     powerUps.push(new PowerUp(Date.now(), x, y, type));
 }
 
@@ -234,8 +234,15 @@ io.on('connection', (socket) => {
     socket.emit('roleAssigned', role);
     socket.on('ping', (callback) => { if (typeof callback === 'function') callback(); });
 
-    if (role === 'Player 1') players[socket.id] = new Gorilla(socket.id, 1, 250, 300, '#ff4444', 3, 2, 0.05);
-    if (role === 'Player 2') players[socket.id] = new Gorilla(socket.id, 2, 550, 300, '#4444ff', -2, 3, -0.04);
+    if (role === 'Player 1') players[socket.id] = new PlayerCharacter(socket.id, 1, 250, 300, '#ff4444', 3, 2, 0.05);
+    if (role === 'Player 2') players[socket.id] = new PlayerCharacter(socket.id, 2, 550, 300, '#4444ff', -2, 3, -0.04);
+
+    // NEW: Listen for avatar selection
+    socket.on('setAvatar', (avatarFilename) => {
+        if (players[socket.id]) {
+            players[socket.id].avatar = avatarFilename;
+        }
+    });
 
     socket.on('startGame', (arenaType) => {
         if (socket.id === p1SocketId || socket.id === p2SocketId) {
@@ -257,8 +264,8 @@ io.on('connection', (socket) => {
         p.lastShotTime = now;
         p.throwTimer = 15; 
 
-        const spawnX = p.x + Math.cos(p.angle) * 40;
-        const spawnY = p.y + Math.sin(p.angle) * 40;
+        const spawnX = p.x + Math.cos(p.angle) * 45; // Extended spawn point slightly for new images
+        const spawnY = p.y + Math.sin(p.angle) * 45;
 
         if (p.multiShotsLeft > 0) {
             p.multiShotsLeft--;
