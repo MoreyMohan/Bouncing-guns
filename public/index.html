@@ -14,8 +14,8 @@
         
         /* Avatar Selector Styles */
         .avatar-selector { display: flex; gap: 15px; margin-bottom: 30px; }
-        .avatar-img { width: 70px; height: 70px; border-radius: 50%; border: 3px solid #555; cursor: pointer; opacity: 0.5; transition: 0.2s; object-fit: cover; background-color: #fff; }
-        .avatar-img:hover { opacity: 0.8; }
+        .avatar-img { width: 70px; height: 70px; border-radius: 50%; border: 3px solid #555; cursor: pointer; opacity: 0.6; transition: 0.2s; object-fit: contain; background-color: rgba(255, 255, 255, 0.08); padding: 4px; }
+        .avatar-img:hover { opacity: 0.9; }
         .avatar-img.selected { border-color: #ffeb3b; opacity: 1; transform: scale(1.15); box-shadow: 0 0 15px rgba(255, 235, 59, 0.5); }
 
         .arena-btn { background-color: #444; color: white; border: 2px solid #888; padding: 10px 20px; margin: 8px; width: 90%; max-width: 300px; font-size: 16px; cursor: pointer; border-radius: 5px; }
@@ -37,13 +37,12 @@
         <button id="shootBtn">SHOOT</button>
         <div id="menu" style="display: none;">
             
-            <!-- AVATAR SELECTION UI -->
             <h2 style="margin-bottom: 10px;">Choose Your Fighter</h2>
             <div class="avatar-selector">
-                <img src="1000151718.jpg" class="avatar-img" onclick="selectAvatar('1000151718.jpg')">
-                <img src="1000151721.jpg" class="avatar-img" onclick="selectAvatar('1000151721.jpg')">
-                <img src="1000151724.jpg" class="avatar-img selected" onclick="selectAvatar('1000151724.jpg')">
-                <img src="1000151727.jpg" class="avatar-img" onclick="selectAvatar('1000151727.jpg')">
+                <img data-avatar="1000151718.jpg" src="1000151718.jpg" class="avatar-img" onclick="selectAvatar('1000151718.jpg')">
+                <img data-avatar="1000151721.jpg" src="1000151721.jpg" class="avatar-img" onclick="selectAvatar('1000151721.jpg')">
+                <img data-avatar="1000151724.jpg" src="1000151724.jpg" class="avatar-img selected" onclick="selectAvatar('1000151724.jpg')">
+                <img data-avatar="1000151727.jpg" src="1000151727.jpg" class="avatar-img" onclick="selectAvatar('1000151727.jpg')">
             </div>
 
             <h1 style="font-size: 24px; text-align: center; margin-top: 20px;">Select Playground</h1>
@@ -68,11 +67,83 @@
         const waitingText = document.getElementById('waitingText');
         const shootBtn = document.getElementById('shootBtn');
 
-        // Preload avatar images
+        // Strips the grey checkerboard background using a fast border flood-fill
+        function removeCheckerboard(img) {
+            const size = 128;
+            const off = document.createElement('canvas');
+            off.width = size;
+            off.height = size;
+            const octx = off.getContext('2d');
+
+            // Preserve aspect ratio when drawing onto the square offscreen canvas
+            const scale = Math.min(size / img.width, size / img.height);
+            const dw = img.width * scale;
+            const dh = img.height * scale;
+            octx.drawImage(img, (size - dw) / 2, (size - dh) / 2, dw, dh);
+
+            const imgData = octx.getImageData(0, 0, size, size);
+            const data = imgData.data;
+            const visited = new Uint8Array(size * size);
+            const queue = new Int32Array(size * size);
+            let head = 0, tail = 0;
+
+            function isBg(idx) {
+                const i = idx * 4;
+                if (data[i + 3] === 0) return true;
+                const r = data[i], g = data[i + 1], b = data[i + 2];
+                const sat = Math.max(r, g, b) - Math.min(r, g, b);
+                const lum = (r + g + b) / 3;
+                // Grey checkerboard has low saturation and is darker than the white sticker border
+                return sat < 25 && lum < 220;
+            }
+
+            // Seed flood-fill from all 4 edges
+            for (let x = 0; x < size; x++) {
+                const top = x, bot = (size - 1) * size + x;
+                if (!visited[top] && isBg(top)) { visited[top] = 1; queue[tail++] = top; }
+                if (!visited[bot] && isBg(bot)) { visited[bot] = 1; queue[tail++] = bot; }
+            }
+            for (let y = 0; y < size; y++) {
+                const left = y * size, right = y * size + (size - 1);
+                if (!visited[left] && isBg(left)) { visited[left] = 1; queue[tail++] = left; }
+                if (!visited[right] && isBg(right)) { visited[right] = 1; queue[tail++] = right; }
+            }
+
+            while (head < tail) {
+                const idx = queue[head++];
+                data[idx * 4 + 3] = 0; // Make transparent
+
+                const x = idx % size;
+                const y = (idx / size) | 0;
+                if (x > 0 && !visited[idx - 1] && isBg(idx - 1)) { visited[idx - 1] = 1; queue[tail++] = idx - 1; }
+                if (x < size - 1 && !visited[idx + 1] && isBg(idx + 1)) { visited[idx + 1] = 1; queue[tail++] = idx + 1; }
+                if (y > 0 && !visited[idx - size] && isBg(idx - size)) { visited[idx - size] = 1; queue[tail++] = idx - size; }
+                if (y < size - 1 && !visited[idx + size] && isBg(idx + size)) { visited[idx + size] = 1; queue[tail++] = idx + size; }
+            }
+
+            octx.putImageData(imgData, 0, 0);
+            return off;
+        }
+
+        // Preload and process avatar images
         const avatarImages = {};
+        // Aligns each avatar's gun barrel with the firing direction (+X)
+        const AVATAR_CONFIG = {
+            '1000151718.jpg': { flipX: false, rotOffset: 0,    mx: 24, my: 2 },  // Rabbit
+            '1000151721.jpg': { flipX: true,  rotOffset: 0.45, mx: 24, my: -6 }, // Panda
+            '1000151724.jpg': { flipX: true,  rotOffset: 0.90, mx: 24, my: -4 }, // Monkey
+            '1000151727.jpg': { flipX: false, rotOffset: 0,    mx: 25, my: 8 }   // Cat
+        };
         ['1000151718.jpg', '1000151721.jpg', '1000151724.jpg', '1000151727.jpg'].forEach(name => {
-            avatarImages[name] = new Image();
-            avatarImages[name].src = name;
+            const img = new Image();
+            img.onload = () => {
+                const cleanCanvas = removeCheckerboard(img);
+                avatarImages[name] = cleanCanvas;
+                // Also update the menu thumbnail to the transparent version
+                const thumb = document.querySelector(`img[data-avatar="${name}"]`);
+                if (thumb) thumb.src = cleanCanvas.toDataURL('image/png');
+            };
+            img.src = name;
         });
 
         let serverState = {};
@@ -82,7 +153,7 @@
 
         function selectAvatar(imgName) {
             document.querySelectorAll('.avatar-img').forEach(img => img.classList.remove('selected'));
-            document.querySelector(`img[src="${imgName}"]`).classList.add('selected');
+            document.querySelector(`img[data-avatar="${imgName}"]`).classList.add('selected');
             socket.emit('setAvatar', imgName);
         }
 
@@ -182,7 +253,6 @@
 
             if (serverState.bullets) {
                 serverState.bullets.forEach(b => {
-                    // Bullets are visually drawn as glowing yellow orbs to match the guns
                     ctx.beginPath();
                     ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
                     ctx.fillStyle = "#ffeb3b";
@@ -205,48 +275,65 @@
                     ctx.fillText(statusText, 0, -45);
                     
                     if (p.hasShield) {
-                        ctx.beginPath(); ctx.arc(0, 0, 34, 0, Math.PI * 2);
+                        ctx.beginPath(); ctx.arc(0, 0, 36, 0, Math.PI * 2);
                         ctx.strokeStyle = "rgba(0, 255, 255, 0.8)"; ctx.lineWidth = 4; ctx.stroke();
                     }
 
                     ctx.rotate(p.angle); 
-                    
-                    // Circular clipping path hides the JPG checkerboard backgrounds
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 25, 0, Math.PI * 2);
-                    ctx.closePath();
-                    
-                    // Draw a colored ring around the avatar to show which player it is
-                    ctx.lineWidth = 6;
-                    ctx.strokeStyle = p.color;
-                    ctx.stroke();
-                    
-                    ctx.clip(); // Mask the image into a circle
-                    
-                    // Draw the custom Avatar Image
-                    if (p.avatar && avatarImages[p.avatar] && avatarImages[p.avatar].complete) {
-                        ctx.drawImage(avatarImages[p.avatar], -25, -25, 50, 50);
+
+                    const cfg = AVATAR_CONFIG[p.avatar] || { flipX: false, rotOffset: 0, mx: 24, my: 0 };
+
+                    // Draw the avatar oriented so its gun points straight along the aim line
+                    ctx.save();
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 12;
+                    ctx.rotate(cfg.rotOffset);
+                    if (cfg.flipX) ctx.scale(-1, 1);
+
+                    if (p.avatar && avatarImages[p.avatar]) {
+                        ctx.drawImage(avatarImages[p.avatar], -30, -30, 60, 60);
                     } else {
-                        // Fallback color if image is loading
                         ctx.fillStyle = p.color;
-                        ctx.fillRect(-25, -25, 50, 50);
+                        ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI * 2); ctx.fill();
                     }
+                    ctx.restore();
 
-                    // Restore canvas state to draw outside the circular clip mask
-                    ctx.restore(); 
-                    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+                    // Faint Aiming Laser Sight extending from the gun barrel
+                    const laserLength = 150;
+                    const grad = ctx.createLinearGradient(cfg.mx, cfg.my, cfg.mx + laserLength, cfg.my);
+                    grad.addColorStop(0, p.color);
+                    grad.addColorStop(1, "rgba(255, 255, 255, 0)");
 
-                    // Dynamic Muzzle Flash (Triggers during the first few frames of throwing)
-                    if (p.throwTimer > 10) {
-                        // Draw outer orange flash
+                    ctx.save();
+                    ctx.globalAlpha = 0.45;
+                    ctx.strokeStyle = grad;
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 4]);
+
+                    let angles = [0];
+                    if (p.multiShotsLeft > 0) angles = [-0.3, 0, 0.3];
+                    else if (p.doubleShotsLeft > 0) angles = [-0.15, 0.15];
+
+                    angles.forEach(offset => {
                         ctx.beginPath();
-                        ctx.arc(32, 10, Math.random() * 8 + 8, 0, Math.PI * 2);
-                        ctx.fillStyle = "rgba(255, 140, 0, 0.8)"; 
+                        ctx.moveTo(cfg.mx, cfg.my);
+                        ctx.lineTo(
+                            cfg.mx + Math.cos(offset) * laserLength,
+                            cfg.my + Math.sin(offset) * laserLength
+                        );
+                        ctx.stroke();
+                    });
+                    ctx.restore();
+
+                    // Dynamic Muzzle Flash at the exact gun barrel tip
+                    if (p.throwTimer > 10) {
+                        ctx.beginPath();
+                        ctx.arc(cfg.mx, cfg.my, Math.random() * 6 + 6, 0, Math.PI * 2);
+                        ctx.fillStyle = "rgba(255, 140, 0, 0.85)"; 
                         ctx.fill();
                         
-                        // Draw inner yellow core
                         ctx.beginPath();
-                        ctx.arc(32, 10, Math.random() * 5 + 4, 0, Math.PI * 2);
+                        ctx.arc(cfg.mx, cfg.my, Math.random() * 3 + 3, 0, Math.PI * 2);
                         ctx.fillStyle = "rgba(255, 255, 0, 1)"; 
                         ctx.fill();
                     }
@@ -263,8 +350,7 @@
                 ctx.fillStyle = serverState.winnerMessage.includes("Player 1") ? "#ff4444" : "#4444ff";
                 ctx.font = "30px Arial"; ctx.fillText(serverState.winnerMessage, 400, 330);
             }
-            requestAnimationFrame(draw);
-        }
+            requestAnimationFrame(draw);}
         draw();
     </script>
 </body>

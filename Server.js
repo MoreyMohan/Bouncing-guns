@@ -19,6 +19,13 @@ let winnerMessage = '';
 let p1SocketId = null;
 let p2SocketId = null;
 let powerUpTimer = null;
+// Exact barrel tip (mx = forward, my = down) for each 60x60 avatar sprite
+const AVATAR_MUZZLES = {
+    '1000151718.jpg': { mx: 24, my: 2 },   // Rabbit
+    '1000151721.jpg': { mx: 24, my: -6 },  // Panda
+    '1000151724.jpg': { mx: 24, my: -4 },  // Monkey
+    '1000151727.jpg': { mx: 25, my: 8 }    // Cat
+};
 
 class Obstacle {
     constructor(id, x, y, width, height, dx = 0, dy = 0) {
@@ -264,8 +271,13 @@ io.on('connection', (socket) => {
         p.lastShotTime = now;
         p.throwTimer = 15; 
 
-        const spawnX = p.x + Math.cos(p.angle) * 45; // Extended spawn point slightly for new images
-        const spawnY = p.y + Math.sin(p.angle) * 45;
+       const muzzle = AVATAR_MUZZLES[p.avatar] || { mx: 24, my: 0 };
+        const cos = Math.cos(p.angle);
+        const sin = Math.sin(p.angle);
+
+        // Rotate the local gun tip offset to match the player's current angle
+        const spawnX = p.x + (muzzle.mx * cos - muzzle.my * sin);
+        const spawnY = p.y + (muzzle.mx * sin + muzzle.my * cos);
 
         if (p.multiShotsLeft > 0) {
             p.multiShotsLeft--;
